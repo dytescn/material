@@ -1,0 +1,14 @@
+{
+  "name": "material",
+  "version": "1.0.4",
+  "description": "project for material",
+  "keywords": ["material"],
+  "author": "funxdata",
+  "type": "web",
+  "dependencies-web": {},
+  "exports": {
+    "./assets/project_app_0_0_1.js": "material.js",
+    "./src/setup.ts": "setup.ts"
+  },
+  "init":["./setup.ts"]
+}
