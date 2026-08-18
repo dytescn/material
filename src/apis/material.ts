@@ -1,16 +1,13 @@
-// src/apis/materialFile.ts
-// 完全自包含，使用 db_insert, db_update, db_delete, db_query
-
+// src/apis/material.ts
 const API_URL = "http://127.0.0.1:44944/database";
-const PROJECT_DB = "./material";
+const DB_PATH = "./material";
 
-// ---------- 基础数据库操作 ----------
 const dbFetch = async (symbol: string, body: any) => {
   const response = await fetch(API_URL, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/libary',
-      'FFI-Symbol': symbol,
+      "Content-Type": "application/libary",
+      "FFI-Symbol": symbol,
     },
     body: JSON.stringify(body),
   });
@@ -18,92 +15,125 @@ const dbFetch = async (symbol: string, body: any) => {
   return response.json();
 };
 
-const dbQuery = async (sql: string, path: string = PROJECT_DB) => {
-  const raw = await dbFetch('db_query', { path, sql });
-  if (raw?.data && Array.isArray(raw.data)) {
-    return raw.data;
+const dbQuery = async (sql: string, path: string = DB_PATH) => {
+  const raw = await dbFetch("db_query", { path, sql });
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object") {
+    if (Array.isArray(raw.data)) return raw.data;
+    if (raw.data && typeof raw.data === "object") {
+      if (Array.isArray(raw.data.rows)) return raw.data.rows;
+      if (Array.isArray(raw.data.result)) return raw.data.result;
+      if (Array.isArray(raw.data.list)) return raw.data.list;
+    }
+    if (Array.isArray(raw.result)) return raw.result;
+    if (Array.isArray(raw.rows)) return raw.rows;
   }
-  return raw;
+  return [];
 };
 
-const dbInsert = (sql: string, path: string = PROJECT_DB) => {
-  return dbFetch('db_insert', { path, sql });
-};
+const dbInsert = (sql: string, path: string = DB_PATH) => dbFetch("db_insert", { path, sql });
+const dbUpdate = (sql: string, path: string = DB_PATH) => dbFetch("db_update", { path, sql });
+const dbDelete = (sql: string, path: string = DB_PATH) => dbFetch("db_delete", { path, sql });
 
-const dbUpdate = (sql: string, path: string = PROJECT_DB) => {
-  return dbFetch('db_update', { path, sql });
-};
-
-const dbDelete = (sql: string, path: string = PROJECT_DB) => {
-  return dbFetch('db_delete', { path, sql });
-};
-
-// ---------- 素材文件 CRUD ----------
-// 表名：material_file，列：id, uuid, puid, ouid, flow_uid, type_uid, name, "desc", cover, create_by, created_at, updated_at, deleted_at
-
-// 1. 新增素材文件
 export const insertMaterialFile = async (data: any) => {
   const sql = `
     INSERT INTO material_file (
-      "uuid", "puid", "ouid", "flow_uid", "type_uid", "name", "desc", "cover", "create_by"
+      uuid, project_uid, organ_uid, flow_uid, type_uid, name, description, cover, create_by
     ) VALUES (
-      '${data.uuid || ''}', '${data.puid || ''}', '${data.ouid || ''}',
-      '${data.flow_uid || ''}', '${data.type_uid || ''}', '${data.name || ''}',
-      '${data.desc || ''}', '${data.cover || ''}', '${data.create_by || ''}'
+      '${data.uuid || ""}', '${data.project_uid || ""}', '${data.organ_uid || ""}',
+      '${data.flow_uid || ""}', '${data.type_uid || ""}', '${data.name || ""}',
+      '${data.description || ""}', '${data.cover || ""}', '${data.create_by || ""}'
     )
   `;
   return await dbInsert(sql);
 };
 
-// 2. 更新素材文件（按 id）
 export const updateMaterialFile = async (id: number, data: any) => {
   const setFields: string[] = [];
-  const allowed = ['uuid', 'puid', 'ouid', 'flow_uid', 'type_uid', 'name', 'desc', 'cover', 'create_by'];
+  const allowed = ["uuid", "project_uid", "organ_uid", "flow_uid", "type_uid", "name", "description", "cover", "create_by"];
   for (const key of allowed) {
     if (data[key] !== undefined) {
-      const val = typeof data[key] === 'string' ? `'${data[key]}'` : data[key];
-      setFields.push(`"${key}" = ${val}`);
+      const val = typeof data[key] === "string" ? `'${data[key]}'` : data[key];
+      setFields.push(`${key} = ${val}`);
     }
   }
-  if (setFields.length === 0) throw new Error('No fields to update');
-  setFields.push(`updated_at = datetime('now')`);
-  const sql = `UPDATE material_file SET ${setFields.join(', ')} WHERE id = ${id}`;
+  if (setFields.length === 0) throw new Error("No fields to update");
+  setFields.push(`updated_at = datetime('now','localtime')`);
+  const sql = `UPDATE material_file SET ${setFields.join(", ")} WHERE id = ${id}`;
   return await dbUpdate(sql);
 };
 
-// 3. 软删除（设置 deleted_at）
+export const updateMaterialFileByUuid = async (uuid: string, data: any) => {
+  const setFields: string[] = [];
+  const allowed = ["project_uid", "organ_uid", "flow_uid", "type_uid", "name", "description", "cover", "create_by"];
+  for (const key of allowed) {
+    if (data[key] !== undefined) {
+      const val = typeof data[key] === "string" ? `'${data[key]}'` : data[key];
+      setFields.push(`${key} = ${val}`);
+    }
+  }
+  if (setFields.length === 0) throw new Error("No fields to update");
+  setFields.push(`updated_at = datetime('now','localtime')`);
+  const sql = `UPDATE material_file SET ${setFields.join(", ")} WHERE uuid = '${uuid}'`;
+  return await dbUpdate(sql);
+};
+
 export const softDeleteMaterialFile = async (id: number) => {
-  const sql = `UPDATE material_file SET deleted_at = datetime('now') WHERE id = ${id}`;
+  const sql = `UPDATE material_file SET deleted_at = datetime('now','localtime') WHERE id = ${id}`;
   return await dbUpdate(sql);
 };
 
-// 4. 物理删除
+export const softDeleteMaterialFileByUuid = async (uuid: string) => {
+  const sql = `UPDATE material_file SET deleted_at = datetime('now','localtime') WHERE uuid = '${uuid}'`;
+  return await dbUpdate(sql);
+};
+
 export const deleteMaterialFile = async (id: number) => {
   const sql = `DELETE FROM material_file WHERE id = ${id}`;
   return await dbDelete(sql);
 };
 
-// 5. 按 id 查询单个（未软删除）
 export const getMaterialFileById = async (id: number) => {
   const rows = await dbQuery(`SELECT * FROM material_file WHERE id = ${id} AND deleted_at IS NULL`);
   return rows?.[0] || null;
 };
 
-// 6. 通用查询列表（支持 WHERE、ORDER BY、LIMIT）
-export const getMaterialFileList = async (where: string = '', order: string = 'id DESC', limit?: number) => {
+export const getMaterialFileByUuid = async (uuid: string) => {
+  const rows = await dbQuery(`SELECT * FROM material_file WHERE uuid = '${uuid}' AND deleted_at IS NULL`);
+  return rows?.[0] || null;
+};
+
+export const getMaterialFileList = async (where = "", order = "id DESC", limit = 40) => {
   let sql = `SELECT * FROM material_file WHERE deleted_at IS NULL`;
   if (where) sql += ` AND ${where}`;
   sql += ` ORDER BY ${order}`;
-  if (limit) sql += ` LIMIT ${limit}`;
+  sql += ` LIMIT ${limit}`;
   return await dbQuery(sql);
 };
 
-// 7. 按项目（puid）查询
-export const getMaterialFilesByPuid = async (puid: string) => {
-  return await getMaterialFileList(`puid = '${puid}'`);
+export const getMaterialFilePage = async (page: number, pageSize: number, where = "", order = "id DESC") => {
+  const offset = (page - 1) * pageSize;
+  let sql = `SELECT * FROM material_file WHERE deleted_at IS NULL`;
+  if (where) sql += ` AND ${where}`;
+  sql += ` ORDER BY ${order} LIMIT ${pageSize} OFFSET ${offset}`;
+  return await dbQuery(sql);
 };
 
-// 8. 按组织（ouid）查询
-export const getMaterialFilesByOuid = async (ouid: string) => {
-  return await getMaterialFileList(`ouid = '${ouid}'`);
+export const getMaterialFileCount = async (where = "") => {
+  let sql = `SELECT COUNT(*) as total FROM material_file WHERE deleted_at IS NULL`;
+  if (where) sql += ` AND ${where}`;
+  const rows = await dbQuery(sql);
+  return rows?.[0]?.total || 0;
+};
+
+export const getMaterialFilesByProjectUid = async (projectUid: string) => {
+  return await getMaterialFileList(`project_uid = '${projectUid}'`);
+};
+
+export const getMaterialFilesByOrganUid = async (organUid: string) => {
+  return await getMaterialFileList(`organ_uid = '${organUid}'`);
+};
+
+export const getMaterialFilesByTypeUid = async (typeUid: string) => {
+  return await getMaterialFileList(`type_uid = '${typeUid}'`);
 };
